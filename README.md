@@ -1,9 +1,9 @@
 Stupid-Simple Messaging Protocol
 ================================
 
-SSMP, aka the Stupid-Simple Messaging Protocol is an application-level
-protocol for 1:1 and 1:many messaging which aims to be a lightweight
-alternative to open messaging protocols such as XMPP or STOMP.
+This document describes the Stupid-Simple Messaging Protocol, an application-level
+protocol for 1:1 and 1:many messaging which aims to be a lightweight alternative
+to open messaging protocols such as XMPP or STOMP.
 
 Key design goals:
   - Text-based, for easy debugging
@@ -15,17 +15,12 @@ Key design goals:
 History
 -------
 
+  - 1.1: Binary payloads and updated length bounds
   - 1.0: Initial version
 
 
-Assumptions
------------
-
-SSMP is designed to run atop a reliable 2-way streaming transport such as TCP.
-
-
-High-level overview
--------------------
+Introduction
+------------
 
 SSMP supports both 1:1 (aka unicast) and 1:many (aka multicast) messaging.
 
@@ -39,14 +34,20 @@ topic in question.
 A limited form of broadcasting is also allowed, wherein a peer can send a
 message to all peers sharing at least one topic subscription.
 
-Message format
---------------
 
-Each message is a `LF`-delimited sequence of UTF-8 encoded unicode codepoints
-that MUST NOT exceed 1024 bytes, `LF` delimiter included.
+Terminology
+-----------
 
-Empty messages are not allowed. In other words, a single `LF` delimiter MUST be
-used between two messages.
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD",
+"SHOULD NOT", "RECOMMENDED",  "MAY", and "OPTIONAL" in this document are to be
+interpreted as described in [RFC 2119](https://www.ietf.org/rfc/rfc2119.txt).
+
+
+Assumptions
+-----------
+
+SSMP is designed to run atop a reliable 2-way streaming transport such as TCP.
+
 
 Grammar
 -------
@@ -76,19 +77,48 @@ forwardable = "SUBSCRIBE" SP id [ SP "PRESENCE" ]
 compat      = verb [ SP id ] [ SP payload ]
 
 code        = 3DIGIT
-verb        = 1*UPALPHA
-id          = 1*ID
-payload     = 1*PAYLOAD
+verb        = 1*16UPALPHA
+id          = 1*64ID
+payload     = ( NUL | SOH | STX | ETX ) 1*1025ANY
+            | 1*1024TEXT
 
 ID          = UPALPHA | LOALPHA | DIGIT
             | "." | ":" | "@" | "/" | "_" | "-" | "+" | "=" | "~"
-PAYLOAD     = <any 8-bit value, except US-ASCII LF>
+TEXT        = <any 8-bit value, except NUL, SOH, STX, ETX, and LF>
+ANY         = <any 8-bit value>
 UPALPHA     = <any US-ASCII uppercase letter "A".."Z">
 LOALPHA     = <any US-ASCII lowercase letter "a".."z">
 DIGIT       = <any US-ASCII digit "0".."9">
 SP          = <US-ASCII SP, space (32)>
 LF          = <US-ASCII LF, linefeed (10)>
+NUL         = <US-ASCII NUL (0)>
+SOH         = <US-ASCII SOH (1)>
+STX         = <US-ASCII STX (2)>
+ETX         = <US-ASCII ETX (3)>
 ```
+
+
+Binary payloads
+---------------
+
+SSMP is primarily designed with text payloads in mind but it can also accommodate
+binary payloads.
+
+A binary payload can be distinguished from a text payload from the first byte:
+
+  - for a binary payload, it MUST be one of: NUL, SOH, STX, or ETX
+
+  - for a text payload it MUST NOT be any of these values
+
+The first two bytes of a binary payload describe the length of the rest of the
+payload. The length is computed by interpreting these two bytes as a big-endian
+integer and adding one to it. This ensures that the length bounds for binary
+payloads match those of text payloads.
+
+For instance, "Hello" can be encoded as the following binary payload:
+
+    00 04 48 65 6C 6C 6F
+
 
 Response codes
 --------------
@@ -105,6 +135,16 @@ Response code values are borrowed from HTTP where appropriate.
 The special `000` code is used to distinguish server events from request/responses,
 thereby allowing events to be freely interleaved with regular responses on the same
 connection.
+
+
+Invalid messages
+----------------
+
+Upon receiving data that does not respect the protocol grammar, a server MUST
+send a `400` response and immediately close the connection.
+
+Upon receiving data that does not respect the protocol grammar, a client MUST
+immediately close the connection.
 
 
 Login
@@ -369,7 +409,7 @@ Forward compatibility
 ---------------------
 
 Upon reception of a request with an unrecognized `verb`, servers MUST send a
-`501` response.
+`501` response and keep the connection open.
 
 This is intended to allow client to safely detect whether servers support
 any new or optional requests that may be added in future versions of this
@@ -379,10 +419,19 @@ Upon reception of an event with an unrecognized `verb`, clients MUST immediately
 close the connection.
 
 
+Payload encoding considerations
+-------------------------------
+
+Servers are oblivious to the encoding of text payloads. They MUST NOT make any
+assumption about character set or encoding and MUST NOT alter the contents of
+the payload in any way before forwarding them to recipients.
+
+Clients SHOULD encode text payloads as UTF-8.
+
+
 Security considerations
 -----------------------
 
 Clients and servers SHOULD secure communications by connecting over TLS,
 especially if a pre-shared secret is used for authentication purposes.
-
 
