@@ -79,12 +79,13 @@ compat      = verb [ SP id ] [ SP payload ]
 code        = 3DIGIT
 verb        = 1*16UPALPHA
 id          = 1*64ID
-payload     = ( NUL | SOH | STX | ETX ) 1*1025ANY
-            | 1*1024TEXT
+payload     = ( NUL | SOH | STX | ETX ) 2*1025ANY
+            | TEXT0 *1023TEXT
 
 ID          = UPALPHA | LOALPHA | DIGIT
             | "." | ":" | "@" | "/" | "_" | "-" | "+" | "=" | "~"
-TEXT        = <any 8-bit value, except NUL, SOH, STX, ETX, and LF>
+TEXT0       = <any 8-bit value, except NUL, SOH, STX, ETX, and LF>
+TEXT        = <any 8-bit value, except LF>
 ANY         = <any 8-bit value>
 UPALPHA     = <any US-ASCII uppercase letter "A".."Z">
 LOALPHA     = <any US-ASCII lowercase letter "a".."z">
