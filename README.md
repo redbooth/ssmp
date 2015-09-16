@@ -436,3 +436,10 @@ Security considerations
 Clients and servers SHOULD secure communications by connecting over TLS,
 especially if a pre-shared secret is used for authentication purposes.
 
+
+Known implementations
+---------------------
+
+ * [lipwig](https://github.com/aerofs/lipwig) : reference implementation (server and client)
+ * [jssmp](https://github.com/aerofs/jssmp) : Java implementation (server and client)
+
